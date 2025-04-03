@@ -1,6 +1,22 @@
 <template>
   <div class="info-form-container">
-    <div class="map-container" ref="mapContainer"></div>
+    <!-- 移动端轮播图 -->
+    <div v-if="isMobile" class="swiper-container">
+      <van-swipe class="swiper" :autoplay="3000" indicator-color="white">
+        <van-swipe-item v-for="(image, index) in formData.images" :key="index">
+          <img :src="image.url" class="swipe-image" />
+        </van-swipe-item>
+      </van-swipe>
+    </div>
+    
+    <!-- PC端轮播图 -->
+    <div v-else class="carousel-container">
+      <el-carousel height="300px">
+        <el-carousel-item v-for="(image, index) in formData.images" :key="index">
+          <img :src="image.url" class="carousel-image" />
+        </el-carousel-item>
+      </el-carousel>
+    </div>
     
     <!-- 移动端界面 -->
     <template v-if="isMobile">
@@ -35,15 +51,19 @@
             readonly
             placeholder="正在获取位置..."
           />
-          <van-field
-            v-model="formData.business_type"
-            name="business_type"
-            label="经营类型"
-            placeholder="请选择经营类型"
-            readonly
-            @click="showTypePicker = true"
-            :rules="[{ required: true, message: '请选择经营类型' }]"
-          />
+          <van-field name="image" label="打卡图片" :rules="[{ required: true, message: '请上传打卡图片' }]">
+            <template #input>
+              <van-uploader
+                v-model="formData.images"
+                :max-count="1"
+                :before-read="beforeRead"
+                :after-read="afterRead"
+              />
+            </template>
+            <template #extra>
+              <div class="upload-tip">请上传打卡现场图片</div>
+            </template>
+          </van-field>
           <van-field
             v-model="formData.remarks"
             name="remarks"
@@ -60,17 +80,6 @@
           </van-button>
         </div>
       </van-form>
-      
-      <!-- 经营类型选择器 -->
-      <van-popup v-model:show="showTypePicker" position="bottom">
-        <van-picker
-          :columns="businessTypes"
-          @confirm="onTypeSelect"
-          @cancel="showTypePicker = false"
-          title="选择经营类型"
-          show-toolbar
-        />
-      </van-popup>
     </template>
     
     <!-- PC端界面 -->
@@ -120,19 +129,27 @@
             </el-col>
             
             <el-col :span="12">
-              <el-form-item label="经营类型" prop="business_type">
-                <el-select
-                  v-model="formData.business_type"
-                  placeholder="请选择经营类型"
-                  style="width: 100%"
+              <el-form-item label="打卡图片" prop="images">
+                <el-upload
+                  v-model:file-list="formData.images"
+                  class="upload-demo"
+                  action="#"
+                  :auto-upload="false"
+                  :limit="1"
+                  list-type="picture-card"
+                  :before-upload="beforeUpload"
+                  accept="image/*"
                 >
-                  <el-option
-                    v-for="type in businessTypes"
-                    :key="type.value"
-                    :label="type.text"
-                    :value="type.value"
-                  />
-                </el-select>
+                  <template #default>
+                    <el-icon><Plus /></el-icon>
+                  </template>
+                  <template #file="{ file }">
+                    <div>
+                      <img class="el-upload-list__item-thumbnail" :src="file.url" alt="" />
+                    </div>
+                  </template>
+                </el-upload>
+                <div class="upload-tip">请上传打卡现场图片</div>
               </el-form-item>
             </el-col>
           </el-row>
@@ -172,106 +189,140 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { showToast, showSuccessToast } from 'vant'
 import { ElMessage } from 'element-plus'
+import { Plus } from '@element-plus/icons-vue'
 import MapService from '../utils/map'
+import { useCheckinStore } from '../stores/checkin'
+
+// 路由
+const route = useRoute()
+const router = useRouter()
+
+// Store
+const checkinStore = useCheckinStore()
+
+// 编辑模式
+const isEditMode = computed(() => !!route.params.id)
+const editId = computed(() => route.params.id)
 
 // 响应式布局
 const isMobile = computed(() => window.innerWidth <= 768)
 
 // 响应式数据
-const mapContainer = ref(null)
 const loading = ref(false)
+const formRef = ref(null)
 const currentAddress = ref('')
-const showTypePicker = ref(false)
 
+// 表单数据
 const formData = ref({
   shop_name: '',
   contact: '',
   phone: '',
-  business_type: '',
-  location: null,
+  address: '',
+  images: [],
   remarks: ''
 })
 
-// 经营类型选项
-const businessTypes = [
-  { text: '餐饮美食', value: 'food' },
-  { text: '零售百货', value: 'retail' },
-  { text: '服装鞋帽', value: 'clothing' },
-  { text: '美容美发', value: 'beauty' },
-  { text: '家居建材', value: 'home' },
-  { text: '其他', value: 'other' }
-]
-
-// 表单验证规则（PC端）
+// 表单验证规则
 const rules = {
-  shop_name: [
-    { required: true, message: '请输入商铺名称', trigger: 'blur' }
-  ],
-  contact: [
-    { required: true, message: '请输入联系人姓名', trigger: 'blur' }
-  ],
-  phone: [
-    { required: true, message: '请输入联系电话', trigger: 'blur' },
-    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号码', trigger: 'blur' }
-  ],
-  business_type: [
-    { required: true, message: '请选择经营类型', trigger: 'change' }
-  ]
+  shop_name: [{ required: true, message: '请输入商铺名称', trigger: 'blur' }],
+  contact: [{ required: true, message: '请输入联系人姓名', trigger: 'blur' }],
+  phone: [{ required: true, message: '请输入联系电话', trigger: 'blur' }],
+  images: [{ required: true, message: '请上传打卡图片', trigger: 'change' }]
 }
 
-// 初始化地图
+// 初始化数据
 onMounted(async () => {
-  try {
-    const map = await MapService.initMap(mapContainer.value)
-    const location = await MapService.getCurrentLocation()
-    
-    formData.value.location = location.position
-    currentAddress.value = location.formattedAddress
-    
-    // 在地图上显示当前位置
-    MapService.showCurrentLocation(map, location.position)
-  } catch (error) {
-    const message = '获取位置信息失败：' + error.message
-    isMobile.value ? showToast(message) : ElMessage.error(message)
+  if (isEditMode.value) {
+    const form = checkinStore.infoForms.find(f => f.id === editId.value)
+    if (form) {
+      formData.value = { ...form }
+      currentAddress.value = form.address
+    }
+  }
+  
+  // 获取当前位置
+  if (!isEditMode.value) {
+    try {
+      const location = await MapService.getCurrentLocation()
+      currentAddress.value = location.address
+      formData.value.address = location.address
+    } catch (error) {
+      const message = '获取位置信息失败：' + error.message
+      isMobile.value ? showToast(message) : ElMessage.error(message)
+    }
   }
 })
 
-// 经营类型选择
-const onTypeSelect = (type) => {
-  formData.value.business_type = type.value
-  showTypePicker.value = false
+// 图片上传前检查
+const beforeRead = (file) => {
+  const isImage = file.type.indexOf('image') !== -1
+  if (!isImage) {
+    isMobile.value ? showToast('请上传图片文件！') : ElMessage.warning('请上传图片文件！')
+  }
+  return isImage
 }
+
+// 图片上传后处理
+const afterRead = (file) => {
+  formData.value.images = [file]
+}
+
+// PC端图片上传前检查
+const beforeUpload = (file) => {
+  const isImage = file.type.indexOf('image') !== -1
+  if (!isImage) {
+    ElMessage.warning('请上传图片文件！')
+    return false
+  }
+  
+  const reader = new FileReader()
+  reader.readAsDataURL(file)
+  reader.onload = () => {
+    formData.value.images = [{
+      url: reader.result,
+      raw: file
+    }]
+  }
+  return false
+}
+
+
 
 // 提交表单
 const handleSubmit = async () => {
-  if (!formData.value.location) {
-    const message = '无法获取位置信息，请检查定位权限'
-    isMobile.value ? showToast(message) : ElMessage.warning(message)
-    return
+  if (isMobile.value) {
+    // 移动端表单验证
+    if (!formData.value.shop_name || !formData.value.contact || !formData.value.phone || !formData.value.images.length) {
+      showToast('请填写完整信息')
+      return
+    }
+  } else {
+    // PC端表单验证
+    await formRef.value.validate()
   }
-  
+
   loading.value = true
   try {
-    // 实际项目中应该调用后端API
-    // const response = await request.post('/shop/info', formData.value)
-    
-    // 模拟API调用
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    
-    const message = '信息提交成功'
-    isMobile.value ? showSuccessToast(message) : ElMessage.success(message)
-    
-    // 重置表单
-    formData.value = {
-      shop_name: '',
-      contact: '',
-      phone: '',
-      business_type: '',
-      location: formData.value.location,
-      remarks: ''
+    const submitData = {
+      ...formData.value,
+      address: currentAddress.value
     }
+
+    if (isEditMode.value) {
+      await checkinStore.updateInfoForm(editId.value, submitData)
+      const message = '更新成功'
+      isMobile.value ? showSuccessToast(message) : ElMessage.success(message)
+    } else {
+      await checkinStore.addInfoForm(submitData)
+      const message = '提交成功'
+      isMobile.value ? showSuccessToast(message) : ElMessage.success(message)
+    }
+    
+    // 返回列表页
+    router.push('/info-list')
   } catch (error) {
     const message = '提交失败：' + error.message
     isMobile.value ? showToast(message) : ElMessage.error(message)
@@ -287,10 +338,29 @@ const handleSubmit = async () => {
   display: flex;
   flex-direction: column;
   
-  .map-container {
-    height: 30%;
-    width: 100%;
+  .swiper-container {
+    height: 300px;
     margin-bottom: 16px;
+    
+    .swiper {
+      height: 100%;
+      
+      .swipe-image {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+    }
+  }
+  
+  .carousel-container {
+    margin-bottom: 16px;
+    
+    .carousel-image {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
   }
   
   .form-card {
@@ -310,10 +380,24 @@ const handleSubmit = async () => {
   }
 }
 
-// 移动端样式调整
-.is-mobile {
-  .map-container {
-    height: 25%;
+.upload-tip {
+  font-size: 12px;
+  color: #999;
+  margin-top: 8px;
+}
+
+.upload-demo {
+  :deep(.el-upload--picture-card) {
+    width: 200px;
+    height: 200px;
+    line-height: 200px;
+  }
+  
+  :deep(.el-upload-list__item) {
+    width: 200px;
+    height: 200px;
   }
 }
+
+
 </style>

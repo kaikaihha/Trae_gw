@@ -24,15 +24,15 @@ const routes = [
     meta: { requiresAuth: true },
     children: [
       {
-        path: 'checkin',
-        name: 'Checkin',
-        component: () => import('../views/Checkin.vue'),
+        path: '',
+        name: 'UnifiedCheckin',
+        component: () => import('../views/UnifiedCheckin.vue'),
         meta: { requiresAuth: true }
       },
       {
-        path: 'location-checkin',
-        name: 'LocationCheckin',
-        component: () => import('../views/LocationCheckin.vue'),
+        path: 'tasks',
+        name: 'Tasks',
+        component: () => import('../views/TaskList.vue'),
         meta: { requiresAuth: true }
       },
       {
@@ -42,7 +42,13 @@ const routes = [
         meta: { requiresAuth: true, requiresAdmin: true }
       },
       {
-        path: 'info-form',
+        path: 'info-list',
+        name: 'InfoList',
+        component: () => import('../views/InfoList.vue'),
+        meta: { requiresAuth: true }
+      },
+      {
+        path: 'info-form/:id?',
         name: 'InfoForm',
         component: () => import('../views/InfoForm.vue'),
         meta: { requiresAuth: true }

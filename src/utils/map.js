@@ -74,8 +74,13 @@ export default class MapService {
       
       geolocation.getCurrentPosition((status, result) => {
         if (status === 'complete') {
+          console.log(result);
+          const position = {
+            lng: result.position.lng,
+            lat: result.position.lat
+          };
           resolve({
-            position: result.position,
+            position: position,
             accuracy: result.accuracy,
             location: result.location,
             formattedAddress: result.formattedAddress,
@@ -245,5 +250,87 @@ export default class MapService {
       this.map = null;
       this.mapInstance = null;
     }
+  }
+
+  /**
+   * 在地图上显示当前位置
+   * @param {Object} map 地图实例
+   * @param {Array} position 位置坐标 [lng, lat]
+   * @returns {Object} 标记点对象
+   */
+  static showCurrentLocation(map, position) {
+    if (!map || !position) {
+      throw new Error('参数错误');
+    }
+
+    // 验证经纬度的有效性
+    let lng, lat;
+    
+    if (Array.isArray(position)) {
+      lng = parseFloat(position[0]);
+      lat = parseFloat(position[1]);
+    } else if (typeof position === 'object') {
+      lng = parseFloat(position.lng);
+      lat = parseFloat(position.lat);
+    } else {
+      throw new Error('无效的位置参数格式');
+    }
+
+    if (isNaN(lng) || isNaN(lat)) {
+      throw new Error('无效的经纬度坐标');
+    }
+
+    // 创建当前位置的标记
+    const marker = new this.mapInstance.Marker({
+      position: new this.mapInstance.LngLat(lng, lat),
+      icon: new this.mapInstance.Icon({
+        size: new this.mapInstance.Size(25, 34),
+        imageSize: new this.mapInstance.Size(25, 34),
+        image: '//a.amap.com/jsapi_demos/static/demo-center/icons/poi-marker-default.png'
+      }),
+      offset: new this.mapInstance.Pixel(-13, -34)
+    });
+
+    map.add(marker);
+    map.setCenter([lng, lat]);
+    return marker;
+  }
+
+  /**
+   * 显示打卡范围
+   * @param {Object} map 地图实例
+   * @param {Array} center 圆心坐标 [lng, lat]
+   * @param {Number} radius 半径，单位：米
+   */
+  static showCheckinRange(map, center, radius) {
+    if (!map || !center || !radius) {
+      throw new Error('参数错误');
+    }
+
+    const circle = this.createCircle(center, radius);
+    map.setFitView([circle]);
+  }
+
+  /**
+   * 显示位置区域
+   * @param {Object} map 地图实例
+   * @param {Array} points 多边形顶点坐标数组
+   */
+  static showLocationArea(map, points) {
+    if (!map || !points || !points.length) {
+      throw new Error('参数错误');
+    }
+
+    const polygon = new this.mapInstance.Polygon({
+      path: points.map(point => new this.mapInstance.LngLat(point[0], point[1])),
+      strokeColor: '#FF33FF',
+      strokeWeight: 2,
+      strokeOpacity: 0.8,
+      fillColor: '#1791fc',
+      fillOpacity: 0.2
+    });
+
+    map.add(polygon);
+    map.setFitView([polygon]);
   }
 }

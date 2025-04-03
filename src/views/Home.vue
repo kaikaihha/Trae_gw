@@ -20,13 +20,13 @@
       text-color="#fff"
       active-text-color="#ffd04b"
     >
-      <el-menu-item index="/home/checkin">
+      <el-menu-item index="/home">
         <el-icon><Location /></el-icon>
-        <span>范围打卡</span>
+        <span>打卡</span>
       </el-menu-item>
-      <el-menu-item index="/home/location-checkin">
+      <el-menu-item index="/home/tasks">
         <el-icon><Position /></el-icon>
-        <span>位置打卡</span>
+        <span>打卡任务</span>
       </el-menu-item>
       <el-menu-item index="/home/info-form">
         <el-icon><Document /></el-icon>
@@ -51,8 +51,8 @@
 
     <!-- 移动端底部标签栏 -->
     <van-tabbar v-if="isMobile" v-model="activeTab" fixed>
-      <van-tabbar-item icon="location" to="/home/checkin">范围打卡</van-tabbar-item>
-      <van-tabbar-item icon="aim" to="/home/location-checkin">位置打卡</van-tabbar-item>
+      <van-tabbar-item icon="location" to="/home">打卡</van-tabbar-item>
+      <van-tabbar-item icon="aim" to="/home/tasks">打卡任务</van-tabbar-item>
       <van-tabbar-item icon="records" to="/home/info-form">信息填报</van-tabbar-item>
       <template v-if="isAdmin">
         <van-tabbar-item icon="chart-trending-o" to="/home/data-map">数据地图</van-tabbar-item>
